@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="docs/assets/banner_v2.jpg" alt="RepoRewind Banner" width="100%" />
+  <img src="docs/assets/banner_v3.jpg" alt="RepoRewind Banner" width="100%" />
   
   <h1>🕰️ RepoRewind</h1>
   <p><b>Interactive 3D Git History Visualizer & AI Storyteller</b></p>
