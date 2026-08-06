@@ -67,9 +67,9 @@ const App = () => {
   const [hoverNode, setHoverNode] = useState<any>(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
-  // Persistent position cache — Scene updates this on every physics tick,
-  // App reads it to spawn new nodes at their parent's current position
-  const nodePositionsRef = useRef(new Map<string, { x: number; y: number; z: number }>());
+  // Persistent cache of node and link objects so react-force-graph-3d preserves physics state
+  const graphNodesCache = useRef(new Map<string, any>());
+  const graphLinksCache = useRef(new Map<string, any>());
 
   // Track mouse globally for the tooltip
   useEffect(() => {
@@ -264,34 +264,45 @@ const App = () => {
       return true;
     };
 
-    const posCache = nodePositionsRef.current;
+    const nodeCache = graphNodesCache.current;
+    const linkCache = graphLinksCache.current;
 
     allNodesMap.forEach((node, id) => {
       if (isVisible(id)) {
-        const newNode: any = { ...node, isCollapsed: collapsedDirs.has(id) };
+        let graphNode = nodeCache.get(id);
 
-        // Seed NEW nodes at their parent's current simulation position.
-        // ForceGraph3D preserves positions for existing nodes automatically,
-        // but new nodes appear at random positions unless we specify x/y/z.
-        // By starting them at the parent, the force simulation pushes them
-        // outward — creating a smooth "branch growing" animation.
-        if (!posCache.has(id)) {
+        if (!graphNode) {
+          // Creating this node object for the first time
+          graphNode = { ...node };
+
+          // Seed NEW nodes at their parent's current simulation position
+          // so they physically grow out from the parent instead of teleporting.
           const parentId = parentMap.get(id);
-          const parentPos = parentId ? posCache.get(parentId) : null;
-          if (parentPos) {
-            newNode.x = parentPos.x + (Math.random() - 0.5) * 8;
-            newNode.y = parentPos.y + (Math.random() - 0.5) * 8;
-            newNode.z = parentPos.z + (Math.random() - 0.5) * 8;
+          const parentNode = parentId ? nodeCache.get(parentId) : null;
+          if (parentNode && parentNode.x != null) {
+            graphNode.x = parentNode.x + (Math.random() - 0.5) * 8;
+            graphNode.y = parentNode.y + (Math.random() - 0.5) * 8;
+            graphNode.z = parentNode.z + (Math.random() - 0.5) * 8;
           }
+          nodeCache.set(id, graphNode);
         }
 
-        visibleNodes.push(newNode);
+        // Update properties that might have changed
+        graphNode.isCollapsed = collapsedDirs.has(id);
+        
+        visibleNodes.push(graphNode);
       }
     });
 
     allLinks.forEach(link => {
       if (isVisible(link.source) && isVisible(link.target)) {
-        visibleLinks.push(link);
+        const linkId = `${link.source}->${link.target}`;
+        let graphLink = linkCache.get(linkId);
+        if (!graphLink) {
+          graphLink = { ...link };
+          linkCache.set(linkId, graphLink);
+        }
+        visibleLinks.push(graphLink);
       }
     });
 
@@ -425,7 +436,6 @@ const App = () => {
           data={graphData} 
           onNodeClick={handleNodeClick} 
           onNodeHover={setHoverNode}
-          positionsRef={nodePositionsRef}
         />
       </ErrorBoundary>
       

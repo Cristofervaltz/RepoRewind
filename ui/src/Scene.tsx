@@ -7,7 +7,6 @@ interface SceneProps {
   data: any;
   onNodeClick?: (node: any) => void;
   onNodeHover?: (node: any | null) => void;
-  positionsRef: MutableRefObject<Map<string, { x: number; y: number; z: number }>>;
 }
 
 // Generate a glowing circle texture using Canvas API
@@ -44,7 +43,7 @@ const sharedMaterials = {
   file: new THREE.SpriteMaterial({ map: fileTexture, color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }),
 };
 
-export const Scene: React.FC<SceneProps> = ({ data, onNodeClick, onNodeHover, positionsRef }) => {
+export const Scene: React.FC<SceneProps> = ({ data, onNodeClick, onNodeHover }) => {
   const fgRef = useRef<any>();
   const hasZoomedRef = useRef(false);
 
@@ -115,19 +114,7 @@ export const Scene: React.FC<SceneProps> = ({ data, onNodeClick, onNodeHover, po
     return group;
   }, []);
 
-  // Track all node positions on each physics tick so App can seed new nodes at parent positions.
-  // We read from the data prop's nodes directly — ForceGraph mutates x/y/z on these objects in place.
-  const handleEngineTick = useCallback(() => {
-    const nodes = data?.nodes;
-    if (nodes) {
-      for (let i = 0; i < nodes.length; i++) {
-        const n = nodes[i];
-        if (n.x != null) {
-          positionsRef.current.set(n.id, { x: n.x, y: n.y, z: n.z });
-        }
-      }
-    }
-  }, [data, positionsRef]);
+
 
   return (
     <ForceGraph3D
@@ -138,7 +125,6 @@ export const Scene: React.FC<SceneProps> = ({ data, onNodeClick, onNodeHover, po
       // Physics: settle quickly but not instantly — allows smooth branch growing
       d3AlphaDecay={0.06}
       d3VelocityDecay={0.5}
-      warmupTicks={20}
       nodeThreeObject={createNodeObject}
       nodeThreeObjectExtend={false}
       // Links with animated particles
@@ -152,7 +138,6 @@ export const Scene: React.FC<SceneProps> = ({ data, onNodeClick, onNodeHover, po
       onNodeClick={onNodeClick}
       onNodeHover={onNodeHover}
       enableNodeDrag={true}
-      onEngineTick={handleEngineTick}
       onEngineStop={() => {
         // Auto-zoom only on first load
         if (fgRef.current && !hasZoomedRef.current) {
