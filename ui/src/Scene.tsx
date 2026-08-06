@@ -1,6 +1,5 @@
-import React, { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect } from 'react';
 import ForceGraph3D from 'react-force-graph-3d';
-import { Bloom, EffectComposer } from '@react-three/postprocessing';
 import * as THREE from 'three';
 
 interface SceneProps {

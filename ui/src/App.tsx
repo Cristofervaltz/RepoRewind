@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Scene } from './Scene';
 import { motion } from 'framer-motion';
 import { Play, Pause, FastForward, Rewind } from 'lucide-react';
