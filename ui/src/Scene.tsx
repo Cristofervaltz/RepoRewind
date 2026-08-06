@@ -1,4 +1,4 @@
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useEffect } from 'react';
 import ForceGraph3D from 'react-force-graph-3d';
 import * as THREE from 'three';
 import SpriteText from 'three-spritetext';
@@ -29,14 +29,34 @@ const generateGlowTexture = (color: [number, number, number]) => {
   return texture;
 };
 
-// Pre-generate textures
+// Pre-generate textures (shared across all nodes — no per-node allocation)
 const folderTexture = generateGlowTexture([178, 0, 255]);
 const fileTexture = generateGlowTexture([0, 255, 204]);
 const rootTexture = generateGlowTexture([255, 200, 50]);
 const collapsedTexture = generateGlowTexture([255, 100, 50]);
 
+// Shared materials (reused to avoid GPU memory leaks)
+const sharedMaterials = {
+  root: new THREE.SpriteMaterial({ map: rootTexture, color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }),
+  folder: new THREE.SpriteMaterial({ map: folderTexture, color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }),
+  collapsed: new THREE.SpriteMaterial({ map: collapsedTexture, color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }),
+  file: new THREE.SpriteMaterial({ map: fileTexture, color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }),
+};
+
 export const Scene: React.FC<SceneProps> = ({ data, onNodeClick, onNodeHover }) => {
   const fgRef = useRef<any>();
+  const hasZoomedRef = useRef(false);
+
+  // Reset zoom flag when data changes significantly (new repo loaded)
+  const prevNodeCountRef = useRef(0);
+  useEffect(() => {
+    const nodeCount = data?.nodes?.length || 0;
+    // If node count changes by more than 50%, treat as new data — re-zoom
+    if (prevNodeCountRef.current > 0 && Math.abs(nodeCount - prevNodeCountRef.current) / prevNodeCountRef.current > 0.5) {
+      hasZoomedRef.current = false;
+    }
+    prevNodeCountRef.current = nodeCount;
+  }, [data]);
 
   const createNodeObject = useCallback((node: any) => {
     const isRoot = node.id === 'ROOT';
@@ -45,32 +65,25 @@ export const Scene: React.FC<SceneProps> = ({ data, onNodeClick, onNodeHover }) 
 
     const group = new THREE.Group();
 
-    // Glow sprite
-    let texture: THREE.Texture;
+    // Pick shared material and size
+    let material: THREE.SpriteMaterial;
     let glowSize: number;
 
     if (isRoot) {
-      texture = rootTexture;
+      material = sharedMaterials.root;
       glowSize = 28;
     } else if (isCollapsed) {
-      texture = collapsedTexture;
+      material = sharedMaterials.collapsed;
       glowSize = 20;
     } else if (isDir) {
-      texture = folderTexture;
+      material = sharedMaterials.folder;
       glowSize = 18;
     } else {
-      texture = fileTexture;
+      material = sharedMaterials.file;
       glowSize = 10;
     }
 
-    const spriteMat = new THREE.SpriteMaterial({
-      map: texture,
-      color: 0xffffff,
-      transparent: true,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-    const glow = new THREE.Sprite(spriteMat);
+    const glow = new THREE.Sprite(material);
     glow.scale.set(glowSize, glowSize, 1);
     group.add(glow);
 
@@ -86,7 +99,7 @@ export const Scene: React.FC<SceneProps> = ({ data, onNodeClick, onNodeHover }) 
     label.position.set(0, -(glowSize / 2 + 3), 0);
     group.add(label);
 
-    // Collapsed indicator — show child count hint
+    // Collapsed indicator
     if (isCollapsed) {
       const hint = new SpriteText('▶ collapsed');
       hint.color = '#ff8855';
@@ -108,22 +121,26 @@ export const Scene: React.FC<SceneProps> = ({ data, onNodeClick, onNodeHover }) 
       graphData={data}
       nodeLabel=""
       backgroundColor="rgba(0,0,0,0)"
-      d3AlphaDecay={0.02}
-      d3VelocityDecay={0.3}
+      // Physics: settle quickly, then freeze
+      d3AlphaDecay={0.05}
+      d3VelocityDecay={0.6}
+      d3AlphaMin={0.01}
+      cooldownTicks={150}
+      warmupTicks={30}
       nodeThreeObject={createNodeObject}
       nodeThreeObjectExtend={false}
+      // Links: static styling (no animated particles to save GPU)
       linkWidth={1.5}
+      linkOpacity={0.35}
       linkColor={() => 'rgba(0, 255, 204, 0.35)'}
-      linkDirectionalParticles={2}
-      linkDirectionalParticleWidth={2}
-      linkDirectionalParticleSpeed={0.005}
-      linkDirectionalParticleColor={() => 'rgba(178, 0, 255, 0.8)'}
       onNodeClick={onNodeClick}
       onNodeHover={onNodeHover}
       enableNodeDrag={true}
       onEngineStop={() => {
-        if (fgRef.current) {
-          fgRef.current.zoomToFit(1000, 80, () => true);
+        // Only auto-zoom once after initial load, not on every simulation restart
+        if (fgRef.current && !hasZoomedRef.current) {
+          hasZoomedRef.current = true;
+          fgRef.current.zoomToFit(800, 80, () => true);
         }
       }}
     />
