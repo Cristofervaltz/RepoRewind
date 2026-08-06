@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, Component, ErrorInfo, ReactNode } from 'react';
 import { Scene } from './Scene';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Pause, FastForward, Rewind, X, Folder, FileCode, FolderOpen, ChevronRight, Github } from 'lucide-react';
+import { Play, Pause, FastForward, Rewind, X, Folder, FileCode, FolderOpen, ChevronRight, Github, Info } from 'lucide-react';
 import { useWebLLM } from './hooks/useWebLLM';
 import './index.css';
 
@@ -59,6 +59,8 @@ const App = () => {
   const [inputPath, setInputPath] = useState('');
   const [githubUrl, setGithubUrl] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [repoName, setRepoName] = useState('Repository');
+  const [showLegend, setShowLegend] = useState(true);
 
   // New States for Tree Interaction
   const [collapsedDirs, setCollapsedDirs] = useState<Set<string>>(new Set());
@@ -100,6 +102,7 @@ const App = () => {
     if (data.commits && data.commits.length > 0) {
       setCommits(data.commits);
       setCurrentCommitIdx(data.commits.length - 1);
+      if (data.repoName) setRepoName(data.repoName);
       setIsAnalyzed(true);
     } else {
       alert("No commits found or invalid repository");
@@ -218,7 +221,7 @@ const App = () => {
     const allNodesMap = new Map<string, any>();
     const allLinks: any[] = [];
 
-    allNodesMap.set('ROOT', { id: 'ROOT', name: 'RepoRewind', group: 1 });
+    allNodesMap.set('ROOT', { id: 'ROOT', name: repoName, group: 1 });
 
     activeFiles.forEach(filepath => {
       const parts = filepath.split('/');
@@ -268,7 +271,7 @@ const App = () => {
     });
 
     return { nodes: visibleNodes, links: visibleLinks };
-  }, [commits, currentCommitIdx, collapsedDirs]);
+  }, [commits, currentCommitIdx, collapsedDirs, repoName]);
 
   const currentCommit = commits[currentCommitIdx];
 
@@ -416,7 +419,7 @@ const App = () => {
               pointerEvents: 'none',
               padding: '12px 16px',
               zIndex: 100,
-              width: '280px',
+              width: '300px',
               gap: '8px'
             }}
           >
@@ -424,20 +427,90 @@ const App = () => {
               {hoverNode.group === 1 ? <Folder size={18} color="#b200ff" /> : <FileCode size={18} color="#00ffcc" />}
               <span style={{ fontWeight: 600, wordBreak: 'break-all' }}>{hoverNode.name}</span>
             </div>
-            {hoverNode.group === 1 && (
-              <div className="text-xs text-muted" style={{ fontStyle: 'italic' }}>
-                {hoverNode.isCollapsed ? 'Click to expand folder' : 'Click to collapse folder'}
-              </div>
-            )}
-            {currentCommit && (
-              <div style={{ marginTop: '8px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '8px' }}>
-                <div className="text-xs text-muted" style={{ marginBottom: '4px' }}>Current Era:</div>
-                <div className="text-sm">{currentCommit.message.split('\n')[0]}</div>
-              </div>
-            )}
+            <div className="text-xs" style={{ color: 'var(--color-neutral-300)', fontFamily: 'var(--font-mono)', wordBreak: 'break-all' }}>
+              {hoverNode.id === 'ROOT' ? '/' : hoverNode.id}
+            </div>
+            <div style={{ marginTop: '4px', padding: '6px 10px', background: 'rgba(255,255,255,0.05)', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '14px' }}>🖱️</span>
+              <span className="text-xs" style={{ color: '#fff', fontWeight: 500 }}>
+                {hoverNode.group === 1
+                  ? (hoverNode.isCollapsed ? 'Click to expand folder' : 'Click to collapse folder')
+                  : 'Click to view file contents'
+                }
+              </span>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Legend */}
+      <AnimatePresence>
+        {showLegend && (
+          <motion.div
+            initial={{ opacity: 0, x: 50 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 50 }}
+            transition={{ duration: 0.5 }}
+            className="glass-panel"
+            style={{
+              position: 'absolute',
+              top: 'var(--space-4)',
+              right: 'var(--space-4)',
+              zIndex: 10,
+              padding: '16px 20px',
+              width: '220px',
+              gap: '12px',
+            }}
+          >
+            <div className="flex-between">
+              <span style={{ fontWeight: 700, fontSize: 'var(--text-sm)' }}>Legend</span>
+              <button className="btn-icon" onClick={() => setShowLegend(false)} style={{ width: '24px', height: '24px' }}>
+                <X size={14} />
+              </button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#ffc832', boxShadow: '0 0 8px #ffc832' }} />
+                <span className="text-xs">Root (repo name)</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#b200ff', boxShadow: '0 0 8px #b200ff' }} />
+                <span className="text-xs">Folder — click to collapse</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#ff6432', boxShadow: '0 0 8px #ff6432' }} />
+                <span className="text-xs">Collapsed folder</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#00ffcc', boxShadow: '0 0 8px #00ffcc' }} />
+                <span className="text-xs">File — click to view</span>
+              </div>
+            </div>
+            <div className="text-xs text-muted" style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '8px', lineHeight: '1.5' }}>
+              🖱️ Drag to rotate • Scroll to zoom
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Legend toggle when hidden */}
+      {!showLegend && (
+        <button
+          className="btn-icon"
+          onClick={() => setShowLegend(true)}
+          style={{
+            position: 'absolute',
+            top: 'var(--space-4)',
+            right: 'var(--space-4)',
+            zIndex: 10,
+            background: 'rgba(255,255,255,0.05)',
+            border: '1px solid rgba(255,255,255,0.1)',
+          }}
+          title="Show legend"
+        >
+          <Info size={18} />
+        </button>
+      )}
 
       {/* Left Info Panel */}
       <motion.div 

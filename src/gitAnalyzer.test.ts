@@ -22,6 +22,9 @@ describe('analyzeGitHistory', () => {
   it('should parse git log output into Commit objects', async () => {
     const history = await analyzeGitHistory('.');
     
+    expect(history.repoName).toBeDefined();
+    expect(typeof history.repoName).toBe('string');
+    
     // Commits are reversed (oldest first)
     expect(history.commits.length).toBe(2);
     

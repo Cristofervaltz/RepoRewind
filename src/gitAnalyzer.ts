@@ -16,6 +16,7 @@ export interface Commit {
 }
 
 export interface RepoHistory {
+  repoName: string;
   commits: Commit[];
 }
 
@@ -65,5 +66,5 @@ export async function analyzeGitHistory(repoPath: string): Promise<RepoHistory> 
   // Commits come out newest first, let's reverse to oldest first for timeline playback
   commits.reverse();
 
-  return { commits };
+  return { repoName: path.basename(absolutePath), commits };
 }
