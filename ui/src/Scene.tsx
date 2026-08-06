@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect } from 'react';
+import { useRef, useCallback, useEffect, MutableRefObject } from 'react';
 import ForceGraph3D from 'react-force-graph-3d';
 import * as THREE from 'three';
 import SpriteText from 'three-spritetext';
@@ -7,6 +7,7 @@ interface SceneProps {
   data: any;
   onNodeClick?: (node: any) => void;
   onNodeHover?: (node: any | null) => void;
+  positionsRef: MutableRefObject<Map<string, { x: number; y: number; z: number }>>;
 }
 
 // Generate a glowing circle texture using Canvas API
@@ -29,13 +30,13 @@ const generateGlowTexture = (color: [number, number, number]) => {
   return texture;
 };
 
-// Pre-generate textures (shared across all nodes — no per-node allocation)
+// Pre-generate textures (shared across all nodes)
 const folderTexture = generateGlowTexture([178, 0, 255]);
 const fileTexture = generateGlowTexture([0, 255, 204]);
 const rootTexture = generateGlowTexture([255, 200, 50]);
 const collapsedTexture = generateGlowTexture([255, 100, 50]);
 
-// Shared materials (reused to avoid GPU memory leaks)
+// Shared materials (reused to prevent GPU memory leaks)
 const sharedMaterials = {
   root: new THREE.SpriteMaterial({ map: rootTexture, color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }),
   folder: new THREE.SpriteMaterial({ map: folderTexture, color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }),
@@ -43,15 +44,14 @@ const sharedMaterials = {
   file: new THREE.SpriteMaterial({ map: fileTexture, color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }),
 };
 
-export const Scene: React.FC<SceneProps> = ({ data, onNodeClick, onNodeHover }) => {
+export const Scene: React.FC<SceneProps> = ({ data, onNodeClick, onNodeHover, positionsRef }) => {
   const fgRef = useRef<any>();
   const hasZoomedRef = useRef(false);
 
-  // Reset zoom flag when data changes significantly (new repo loaded)
+  // Reset zoom flag when data changes drastically (new repo loaded)
   const prevNodeCountRef = useRef(0);
   useEffect(() => {
     const nodeCount = data?.nodes?.length || 0;
-    // If node count changes by more than 50%, treat as new data — re-zoom
     if (prevNodeCountRef.current > 0 && Math.abs(nodeCount - prevNodeCountRef.current) / prevNodeCountRef.current > 0.5) {
       hasZoomedRef.current = false;
     }
@@ -115,29 +115,47 @@ export const Scene: React.FC<SceneProps> = ({ data, onNodeClick, onNodeHover }) 
     return group;
   }, []);
 
+  // Track all node positions on each physics tick so App can seed new nodes at parent positions
+  const handleEngineTick = useCallback(() => {
+    if (fgRef.current) {
+      const nodes = fgRef.current.graphData()?.nodes;
+      if (nodes) {
+        for (let i = 0; i < nodes.length; i++) {
+          const n = nodes[i];
+          if (n.x != null) {
+            positionsRef.current.set(n.id, { x: n.x, y: n.y, z: n.z });
+          }
+        }
+      }
+    }
+  }, [positionsRef]);
+
   return (
     <ForceGraph3D
       ref={fgRef}
       graphData={data}
       nodeLabel=""
       backgroundColor="rgba(0,0,0,0)"
-      // Physics: settle quickly, then freeze
-      d3AlphaDecay={0.05}
-      d3VelocityDecay={0.6}
-      d3AlphaMin={0.01}
-      cooldownTicks={150}
-      warmupTicks={30}
+      // Physics: settle quickly but not instantly — allows smooth branch growing
+      d3AlphaDecay={0.06}
+      d3VelocityDecay={0.5}
+      warmupTicks={20}
       nodeThreeObject={createNodeObject}
       nodeThreeObjectExtend={false}
-      // Links: static styling (no animated particles to save GPU)
+      // Links with animated particles
       linkWidth={1.5}
       linkOpacity={0.35}
       linkColor={() => 'rgba(0, 255, 204, 0.35)'}
+      linkDirectionalParticles={1}
+      linkDirectionalParticleWidth={1.5}
+      linkDirectionalParticleSpeed={0.004}
+      linkDirectionalParticleColor={() => 'rgba(178, 0, 255, 0.7)'}
       onNodeClick={onNodeClick}
       onNodeHover={onNodeHover}
       enableNodeDrag={true}
+      onEngineTick={handleEngineTick}
       onEngineStop={() => {
-        // Only auto-zoom once after initial load, not on every simulation restart
+        // Auto-zoom only on first load
         if (fgRef.current && !hasZoomedRef.current) {
           hasZoomedRef.current = true;
           fgRef.current.zoomToFit(800, 80, () => true);

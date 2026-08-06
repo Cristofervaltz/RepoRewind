@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, Component, ErrorInfo, ReactNode } from 'react';
+import { useState, useEffect, useMemo, useRef, Component, ErrorInfo, ReactNode } from 'react';
 import { Scene } from './Scene';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Play, Pause, FastForward, Rewind, X, Folder, FileCode, FolderOpen, ChevronRight, Github, Info } from 'lucide-react';
@@ -66,6 +66,10 @@ const App = () => {
   const [collapsedDirs, setCollapsedDirs] = useState<Set<string>>(new Set());
   const [hoverNode, setHoverNode] = useState<any>(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+
+  // Persistent position cache — Scene updates this on every physics tick,
+  // App reads it to spawn new nodes at their parent's current position
+  const nodePositionsRef = useRef(new Map<string, { x: number; y: number; z: number }>());
 
   // Track mouse globally for the tooltip
   useEffect(() => {
@@ -220,6 +224,7 @@ const App = () => {
 
     const allNodesMap = new Map<string, any>();
     const allLinks: any[] = [];
+    const parentMap = new Map<string, string>(); // child id -> parent id
 
     allNodesMap.set('ROOT', { id: 'ROOT', name: repoName, group: 1 });
 
@@ -239,6 +244,7 @@ const App = () => {
             group: isFile ? 2 : 1,
           });
           allLinks.push({ source: prevPath, target: currentPath });
+          parentMap.set(currentPath, prevPath);
         }
       });
     });
@@ -258,9 +264,28 @@ const App = () => {
       return true;
     };
 
+    const posCache = nodePositionsRef.current;
+
     allNodesMap.forEach((node, id) => {
       if (isVisible(id)) {
-        visibleNodes.push({ ...node, isCollapsed: collapsedDirs.has(id) });
+        const newNode: any = { ...node, isCollapsed: collapsedDirs.has(id) };
+
+        // Seed NEW nodes at their parent's current simulation position.
+        // ForceGraph3D preserves positions for existing nodes automatically,
+        // but new nodes appear at random positions unless we specify x/y/z.
+        // By starting them at the parent, the force simulation pushes them
+        // outward — creating a smooth "branch growing" animation.
+        if (!posCache.has(id)) {
+          const parentId = parentMap.get(id);
+          const parentPos = parentId ? posCache.get(parentId) : null;
+          if (parentPos) {
+            newNode.x = parentPos.x + (Math.random() - 0.5) * 8;
+            newNode.y = parentPos.y + (Math.random() - 0.5) * 8;
+            newNode.z = parentPos.z + (Math.random() - 0.5) * 8;
+          }
+        }
+
+        visibleNodes.push(newNode);
       }
     });
 
@@ -400,6 +425,7 @@ const App = () => {
           data={graphData} 
           onNodeClick={handleNodeClick} 
           onNodeHover={setHoverNode}
+          positionsRef={nodePositionsRef}
         />
       </ErrorBoundary>
       
