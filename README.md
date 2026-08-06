@@ -27,7 +27,11 @@ What makes it unique? It features a **Local-First AI Storyteller** (powered by W
 - **🚀 Zero-Config Magic**: Run one command in any `.git` repository, and the 3D player opens instantly. No API keys, no databases, no setup.
 - **🕰️ 4D Time Scrubbing**: Drag the timeline slider to literally watch files pop into existence, microservices split, and heavy refactors unfold.
 - **🤖 Local AI Commentary**: Analyzes your git history and provides context-aware summaries using local models in the browser (100% free and private).
-- **💅 Premium Aesthetics**: Built with React Three Fiber, featuring bloom lighting effects, glassmorphism UI, and smooth Framer Motion micro-animations.
+- **💅 Premium Aesthetics**: Built with React and `3d-force-graph`, featuring custom glowing textures, glassmorphism UI, smooth Framer Motion micro-animations, and 3D text labels.
+- **🌳 Interactive 3D Graph**: 
+  - Dynamic folder collapsing/expanding with smooth "branch growing" physics
+  - Distinct visual cues (Golden root, purple folders, cyan files)
+  - Persistent simulation cache for stable and fluid graph evolution over time
 
 ---
 
@@ -68,7 +72,9 @@ Once the local server starts, RepoRewind automatically opens `http://localhost:3
 
 - **Scroll** to zoom in and out of the 3D code graph.
 - **Drag** to rotate the camera and explore the architecture.
-- **Scrub the Timeline** at the bottom to travel through time. 
+- **Click on Folders** (purple nodes) to collapse or expand entire directories.
+- **Click on Files** (cyan nodes) to view their contents.
+- **Scrub the Timeline** at the bottom to travel through time and watch the graph evolve dynamically. 
 - Click the **AI Storyteller** button to generate a narrative of the current timeline era.
 
 ---
