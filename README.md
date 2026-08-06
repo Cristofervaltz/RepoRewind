@@ -9,7 +9,7 @@
   [![TypeScript](https://img.shields.io/badge/TypeScript-5.4-blue.svg)](#)
   [![React](https://img.shields.io/badge/React-18-61DAFB.svg)](#)
 
-  <p>Turn your codebase evolution into a stunning, interactive 3D movie with zero configuration.</p>
+  <p>Turn your codebase evolution into a stunning 3D movie with zero configuration.</p>
 </div>
 
 ---
