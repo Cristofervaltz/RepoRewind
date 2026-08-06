@@ -115,20 +115,19 @@ export const Scene: React.FC<SceneProps> = ({ data, onNodeClick, onNodeHover, po
     return group;
   }, []);
 
-  // Track all node positions on each physics tick so App can seed new nodes at parent positions
+  // Track all node positions on each physics tick so App can seed new nodes at parent positions.
+  // We read from the data prop's nodes directly — ForceGraph mutates x/y/z on these objects in place.
   const handleEngineTick = useCallback(() => {
-    if (fgRef.current) {
-      const nodes = fgRef.current.graphData()?.nodes;
-      if (nodes) {
-        for (let i = 0; i < nodes.length; i++) {
-          const n = nodes[i];
-          if (n.x != null) {
-            positionsRef.current.set(n.id, { x: n.x, y: n.y, z: n.z });
-          }
+    const nodes = data?.nodes;
+    if (nodes) {
+      for (let i = 0; i < nodes.length; i++) {
+        const n = nodes[i];
+        if (n.x != null) {
+          positionsRef.current.set(n.id, { x: n.x, y: n.y, z: n.z });
         }
       }
     }
-  }, [positionsRef]);
+  }, [data, positionsRef]);
 
   return (
     <ForceGraph3D
