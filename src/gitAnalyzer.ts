@@ -29,7 +29,7 @@ export async function analyzeGitHistory(repoPath: string): Promise<RepoHistory> 
   // Use git log to get commit history and file changes
   // Format: Hash|Author|Date|Message
   // Followed by file status and path
-  const gitCommand = `git -C "${absolutePath}" log --name-status --pretty=format:"COMMIT|%H|%an|%ad|%s" --date=iso`;
+  const gitCommand = `git --no-pager -C "${absolutePath}" log -n 1000 --name-status --pretty=format:"COMMIT|%H|%an|%ad|%s" --date=iso`;
   
   const output = execSync(gitCommand, { maxBuffer: 1024 * 1024 * 50 }).toString(); // 50MB buffer
   const lines = output.split('\n');

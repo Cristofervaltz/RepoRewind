@@ -1,8 +1,35 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, Component, ErrorInfo, ReactNode } from 'react';
 import { Scene } from './Scene';
-import { motion } from 'framer-motion';
-import { Play, Pause, FastForward, Rewind } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Play, Pause, FastForward, Rewind, X, Folder, FileCode, FolderOpen, ChevronRight, Github } from 'lucide-react';
+import { useWebLLM } from './hooks/useWebLLM';
 import './index.css';
+
+class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean, errorMsg: string }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false, errorMsg: '' };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, errorMsg: error.message };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    fetch('/api/log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: `React Error: ${error.message}\nStack: ${error.stack}\nComponent Stack: ${errorInfo.componentStack}` })
+    });
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return <div style={{ color: 'red', padding: '20px' }}>Something went wrong. Check client.log</div>;
+    }
+    return this.props.children;
+  }
+}
 
 interface FileChange {
   status: string;
@@ -21,18 +48,94 @@ const App = () => {
   const [commits, setCommits] = useState<Commit[]>([]);
   const [currentCommitIdx, setCurrentCommitIdx] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [story, setStory] = useState('');
+  const { progressText, isGenerating, generateStory } = useWebLLM();
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [fileContent, setFileContent] = useState('');
+  
+  // Landing state
+  const [isAnalyzed, setIsAnalyzed] = useState(false);
+  const [tab, setTab] = useState<'local' | 'github'>('local');
+  const [inputPath, setInputPath] = useState('');
+  const [githubUrl, setGithubUrl] = useState('');
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+  // New States for Tree Interaction
+  const [collapsedDirs, setCollapsedDirs] = useState<Set<string>>(new Set());
+  const [hoverNode, setHoverNode] = useState<any>(null);
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+
+  // Track mouse globally for the tooltip
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      setMousePos({ x: e.clientX, y: e.clientY });
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    
+    const handleGlobalError = (event: ErrorEvent) => {
+      fetch('/api/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: `Global Error: ${event.message}\nStack: ${event.error?.stack}` })
+      });
+    };
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      fetch('/api/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: `Unhandled Promise: ${event.reason?.stack || event.reason}` })
+      });
+    };
+    window.addEventListener('error', handleGlobalError);
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+    
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('error', handleGlobalError);
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+    };
+  }, []);
+
+  const loadHistoryData = (data: any) => {
+    if (data.commits && data.commits.length > 0) {
+      setCommits(data.commits);
+      setCurrentCommitIdx(data.commits.length - 1);
+      setIsAnalyzed(true);
+    } else {
+      alert("No commits found or invalid repository");
+    }
+  };
 
   useEffect(() => {
+    // Only try to fetch initial history ONCE on mount.
+    // Do NOT depend on isAnalyzed, otherwise clicking "close" will instantly re-fetch and re-open.
     fetch('/api/history')
       .then(res => res.json())
       .then(data => {
-        if (data.commits && data.commits.length > 0) {
-          setCommits(data.commits);
-          setCurrentCommitIdx(data.commits.length - 1);
+        if (!data.error && data.commits && data.commits.length > 0) {
+          loadHistoryData(data);
         }
       })
-      .catch(err => console.error("Failed to fetch history:", err));
+      .catch(() => {}); // ignore, user will use landing page
   }, []);
+
+  useEffect(() => {
+    const eventSource = new EventSource('/api/watch');
+    eventSource.onmessage = () => {
+      // Only auto-update if we are currently looking at a repo
+      if (isAnalyzed) {
+        fetch('/api/history').then(res => res.json()).then(data => {
+          if (!data.error) {
+             if (data.commits && data.commits.length > 0) {
+                setCommits(data.commits);
+                // Don't change currentCommitIdx if they are playing, just update data
+             }
+          }
+        });
+      }
+    };
+    return () => eventSource.close();
+  }, [isAnalyzed]);
 
   useEffect(() => {
     let interval: any;
@@ -46,26 +149,76 @@ const App = () => {
     return () => clearInterval(interval);
   }, [isPlaying, currentCommitIdx, commits.length]);
 
-  // "Time Machine" algorithm: Compute the graph up to currentCommitIdx
+  const handleBrowse = async () => {
+    try {
+      const res = await fetch('/api/browse');
+      const data = await res.json();
+      if (data.path) {
+        setInputPath(data.path);
+      }
+    } catch (e) {
+      console.error("Browse failed", e);
+    }
+  };
+
+  const handleAnalyzeLocal = async () => {
+    if (!inputPath) return;
+    setIsAnalyzing(true);
+    try {
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: inputPath })
+      });
+      const data = await res.json();
+      if (data.error) {
+        alert("Error: " + data.error);
+      } else {
+        loadHistoryData(data);
+      }
+    } catch (e) {
+      alert("Failed to analyze repository");
+    }
+    setIsAnalyzing(false);
+  };
+
+  const handleAnalyzeGithub = async () => {
+    if (!githubUrl) return;
+    setIsAnalyzing(true);
+    try {
+      const res = await fetch('/api/analyze-github', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: githubUrl })
+      });
+      const data = await res.json();
+      if (data.error) {
+        alert("Error: " + data.error);
+      } else {
+        loadHistoryData(data);
+      }
+    } catch (e) {
+      alert("Failed to clone or analyze repository. Make sure the repository is public and git is installed.");
+    }
+    setIsAnalyzing(false);
+  };
+
   const graphData = useMemo(() => {
     if (commits.length === 0) return { nodes: [], links: [] };
 
     const activeFiles = new Set<string>();
     
-    // Play history up to current commit
     for (let i = 0; i <= currentCommitIdx; i++) {
       for (const change of commits[i].changes) {
-        if (change.status === 'D') {
-          activeFiles.delete(change.path);
-        } else {
-          activeFiles.add(change.path);
-        }
+        if (change.status === 'D') activeFiles.delete(change.path);
+        else activeFiles.add(change.path);
       }
     }
 
-    const nodes: any[] = [];
-    const links: any[] = [];
-    const addedDirs = new Set<string>();
+    const allNodesMap = new Map<string, any>();
+    const allLinks: any[] = [];
+
+    allNodesMap.set('ROOT', { id: 'ROOT', name: 'RepoRewind', group: 1 });
 
     activeFiles.forEach(filepath => {
       const parts = filepath.split('/');
@@ -73,76 +226,309 @@ const App = () => {
 
       parts.forEach((part, index) => {
         const isFile = index === parts.length - 1;
-        const prevPath = currentPath;
+        const prevPath = currentPath || 'ROOT';
         currentPath = currentPath ? `${currentPath}/${part}` : part;
 
-        if (!addedDirs.has(currentPath)) {
-          addedDirs.add(currentPath);
-          nodes.push({
+        if (!allNodesMap.has(currentPath)) {
+          allNodesMap.set(currentPath, {
             id: currentPath,
             name: part,
-            group: isFile ? 2 : 1, // 1 for dir, 2 for file
-            color: isFile ? '#00ffcc' : '#b200ff'
+            group: isFile ? 2 : 1,
           });
-
-          if (prevPath) {
-            links.push({
-              source: prevPath,
-              target: currentPath
-            });
-          }
+          allLinks.push({ source: prevPath, target: currentPath });
         }
       });
     });
 
-    return { nodes, links };
-  }, [commits, currentCommitIdx]);
+    const visibleNodes: any[] = [];
+    const visibleLinks: any[] = [];
+    
+    const isVisible = (nodeId: string) => {
+      if (nodeId === 'ROOT') return true;
+      if (collapsedDirs.has('ROOT')) return false;
+      let path = '';
+      const parts = nodeId.split('/');
+      for (let i = 0; i < parts.length - 1; i++) {
+        path = path ? `${path}/${parts[i]}` : parts[i];
+        if (collapsedDirs.has(path)) return false;
+      }
+      return true;
+    };
+
+    allNodesMap.forEach((node, id) => {
+      if (isVisible(id)) {
+        visibleNodes.push({ ...node, isCollapsed: collapsedDirs.has(id) });
+      }
+    });
+
+    allLinks.forEach(link => {
+      if (isVisible(link.source) && isVisible(link.target)) {
+        visibleLinks.push(link);
+      }
+    });
+
+    return { nodes: visibleNodes, links: visibleLinks };
+  }, [commits, currentCommitIdx, collapsedDirs]);
 
   const currentCommit = commits[currentCommitIdx];
 
+  const handleNodeClick = (node: any) => {
+    if (!currentCommit) return;
+    
+    if (node.group === 1) {
+      setCollapsedDirs(prev => {
+        const next = new Set(prev);
+        if (next.has(node.id)) next.delete(node.id);
+        else next.add(node.id);
+        return next;
+      });
+    } else if (node.group === 2) {
+      setSelectedFile(node.id);
+      setFileContent('Loading...');
+      fetch(`/api/file?hash=${currentCommit.hash}&path=${node.id}`)
+        .then(res => res.json())
+        .then(data => setFileContent(data.content || data.error))
+        .catch(() => setFileContent('Failed to load file.'));
+    }
+  };
+
+  const handleCheckout = () => {
+    if (!currentCommit) return;
+    const confirmCheckout = window.confirm(`Warning: This will physically change your repository files to ${currentCommit.hash}. Continue?`);
+    if (!confirmCheckout) return;
+    
+    fetch('/api/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hash: currentCommit.hash })
+    })
+      .then(res => res.json())
+      .then(data => alert(data.error || data.message));
+  };
+
+  if (!isAnalyzed) {
+    return (
+      <div className="app-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '24px' }}>
+        <h1 className="brand-title" style={{ fontSize: '3rem', marginBottom: '0' }}>RepoRewind</h1>
+        <p className="text-muted" style={{ fontSize: '1.2rem', maxWidth: '400px', textAlign: 'center', marginBottom: '20px' }}>
+          Explore your Git history in 3D space. Select a repository to begin.
+        </p>
+        
+        <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', padding: '0', width: '500px', overflow: 'hidden' }}>
+          
+          <div style={{ display: 'flex', borderBottom: '1px solid var(--color-glass-border)' }}>
+            <button 
+              style={{ flex: 1, padding: '16px', background: tab === 'local' ? 'rgba(255,255,255,0.05)' : 'transparent', border: 'none', color: tab === 'local' ? 'white' : 'var(--color-neutral-400)', fontWeight: tab === 'local' ? 600 : 400, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+              onClick={() => setTab('local')}
+            >
+              <FolderOpen size={18} />
+              Local Folder
+            </button>
+            <button 
+              style={{ flex: 1, padding: '16px', background: tab === 'github' ? 'rgba(255,255,255,0.05)' : 'transparent', border: 'none', color: tab === 'github' ? 'white' : 'var(--color-neutral-400)', fontWeight: tab === 'github' ? 600 : 400, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+              onClick={() => setTab('github')}
+            >
+              <Github size={18} />
+              GitHub
+            </button>
+          </div>
+
+          <div style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {tab === 'local' ? (
+              <>
+                <label style={{ fontSize: '0.9rem', color: 'var(--color-neutral-300)' }}>Repository Path</label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input 
+                    type="text" 
+                    value={inputPath}
+                    onChange={(e) => setInputPath(e.target.value)}
+                    placeholder="e.g. C:\Projects\MyRepo"
+                    style={{ flex: 1, padding: '12px 16px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--color-glass-border)', borderRadius: '8px', color: 'white', fontFamily: 'monospace' }}
+                  />
+                  <button className="btn btn-primary" onClick={handleBrowse} title="Browse for folder">
+                    <FolderOpen size={20} />
+                  </button>
+                </div>
+                
+                <button 
+                  className="btn btn-primary" 
+                  onClick={handleAnalyzeLocal} 
+                  disabled={!inputPath || isAnalyzing}
+                  style={{ marginTop: '16px', display: 'flex', justifyContent: 'center', gap: '8px', padding: '14px' }}
+                >
+                  {isAnalyzing ? 'Analyzing...' : 'Launch Visualizer'}
+                  {!isAnalyzing && <ChevronRight size={20} />}
+                </button>
+              </>
+            ) : (
+              <>
+                <label style={{ fontSize: '0.9rem', color: 'var(--color-neutral-300)' }}>GitHub Repository URL or Slug</label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input 
+                    type="text" 
+                    value={githubUrl}
+                    onChange={(e) => setGithubUrl(e.target.value)}
+                    placeholder="e.g. facebook/react"
+                    style={{ flex: 1, padding: '12px 16px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--color-glass-border)', borderRadius: '8px', color: 'white', fontFamily: 'monospace' }}
+                  />
+                </div>
+                
+                <button 
+                  className="btn btn-primary" 
+                  onClick={handleAnalyzeGithub} 
+                  disabled={!githubUrl || isAnalyzing}
+                  style={{ marginTop: '16px', display: 'flex', justifyContent: 'center', gap: '8px', padding: '14px' }}
+                >
+                  {isAnalyzing ? 'Cloning & Analyzing (This might take a minute)...' : 'Clone & Analyze'}
+                  {!isAnalyzing && <ChevronRight size={20} />}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="app-container">
-      <Scene data={graphData} />
+      <ErrorBoundary>
+        <Scene 
+          data={graphData} 
+          onNodeClick={handleNodeClick} 
+          onNodeHover={setHoverNode}
+        />
+      </ErrorBoundary>
       
-      {/* Story Panel */}
+      {/* Dynamic Hover Tooltip */}
+      <AnimatePresence>
+        {hoverNode && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            transition={{ duration: 0.15 }}
+            className="hover-tooltip glass-panel"
+            style={{
+              position: 'absolute',
+              top: mousePos.y + 20,
+              left: mousePos.x + 20,
+              pointerEvents: 'none',
+              padding: '12px 16px',
+              zIndex: 100,
+              width: '280px',
+              gap: '8px'
+            }}
+          >
+            <div className="flex-row" style={{ gap: '8px' }}>
+              {hoverNode.group === 1 ? <Folder size={18} color="#b200ff" /> : <FileCode size={18} color="#00ffcc" />}
+              <span style={{ fontWeight: 600, wordBreak: 'break-all' }}>{hoverNode.name}</span>
+            </div>
+            {hoverNode.group === 1 && (
+              <div className="text-xs text-muted" style={{ fontStyle: 'italic' }}>
+                {hoverNode.isCollapsed ? 'Click to expand folder' : 'Click to collapse folder'}
+              </div>
+            )}
+            {currentCommit && (
+              <div style={{ marginTop: '8px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '8px' }}>
+                <div className="text-xs text-muted" style={{ marginBottom: '4px' }}>Current Era:</div>
+                <div className="text-sm">{currentCommit.message.split('\n')[0]}</div>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Left Info Panel */}
       <motion.div 
         initial={{ opacity: 0, x: -50 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.8 }}
-        className="story-panel glass"
+        className="glass-panel panel-left"
+        style={{ width: selectedFile ? '500px' : '380px' }}
       >
-        <h1 className="title">RepoRewind</h1>
-        {currentCommit ? (
-          <>
-            <div className="era-badge">Date: {new Date(currentCommit.date).toLocaleDateString()}</div>
-            <h2 className="subtitle">{currentCommit.message.split('\n')[0]}</h2>
-            <p className="description">
-              Files changed: {currentCommit.changes.length}. This commit shaped the structure you see right now. 
-              (AI Summary will be generated here).
-            </p>
-            <div className="commit-info">
-              <span className="hash">#{currentCommit.hash.substring(0, 7)}</span>
-              <span className="author">{currentCommit.author}</span>
+        <div className="flex-between">
+          <h1 className="brand-title" style={{ fontSize: '1.5rem', marginBottom: 0 }}>RepoRewind</h1>
+          <button className="btn-icon" onClick={() => { setIsAnalyzed(false); }} title="Select a different repository">
+            <FolderOpen size={18} />
+          </button>
+        </div>
+        
+        <div style={{ marginTop: '24px' }}>
+          {selectedFile ? (
+            <div>
+              <div className="flex-between">
+                <h3 className="heading-2" style={{ wordBreak: 'break-all', fontSize: '1rem', color: 'var(--color-primary-500)' }}>
+                  {selectedFile}
+                </h3>
+                <button className="btn-icon" onClick={() => setSelectedFile(null)}>
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="code-viewer">
+                <pre>{fileContent}</pre>
+              </div>
             </div>
-          </>
-        ) : (
-          <p>Loading timeline...</p>
-        )}
+          ) : currentCommit ? (
+            <>
+              <div className="badge">{new Date(currentCommit.date).toLocaleDateString()}</div>
+              <h2 className="heading-2">{currentCommit.message.split('\n')[0]}</h2>
+              
+              <div className="flex-between text-mono text-muted" style={{ borderTop: '1px solid var(--color-glass-border)', paddingTop: '16px' }}>
+                <span style={{ color: 'var(--color-primary-500)' }}>#{currentCommit.hash.substring(0, 7)}</span>
+                <span>{currentCommit.author}</span>
+              </div>
+              
+              <button className="btn btn-primary" onClick={handleCheckout}>
+                ⏱ Time-Travel to this Era
+              </button>
+              
+              <details>
+                <summary>✨ AI Lore Generator</summary>
+                <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <button 
+                    className="btn btn-primary"
+                    onClick={() => generateStory(commits.slice(0, currentCommitIdx + 1), setStory)}
+                    disabled={isGenerating}
+                  >
+                    {isGenerating ? 'Generating Story...' : 'Generate Story'}
+                  </button>
+                  
+                  {progressText && <div className="text-muted" style={{ color: 'var(--color-primary-500)' }}>{progressText}</div>}
+                  
+                  {story && (
+                    <div className="text-muted" style={{ 
+                      padding: '12px', 
+                      background: 'var(--color-neutral-900)', 
+                      borderRadius: 'var(--radius-md)',
+                      borderLeft: '2px solid var(--color-primary-500)',
+                      whiteSpace: 'pre-wrap'
+                    }}>
+                      {story}
+                    </div>
+                  )}
+                </div>
+              </details>
+            </>
+          ) : (
+            <p className="text-muted">Loading timeline...</p>
+          )}
+        </div>
       </motion.div>
 
-      {/* Timeline Controls */}
+      {/* Bottom Timeline Panel */}
       <motion.div 
         initial={{ opacity: 0, y: 50 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8, delay: 0.2 }}
-        className="timeline-panel glass"
+        className="glass-panel panel-bottom flex-row"
       >
-        <div className="controls">
-          <button className="icon-btn" onClick={() => setCurrentCommitIdx(0)}><Rewind size={20} /></button>
-          <button className="icon-btn primary" onClick={() => setIsPlaying(!isPlaying)}>
-            {isPlaying ? <Pause size={24} /> : <Play size={24} />}
+        <div className="flex-row">
+          <button className="btn-icon" onClick={() => setCurrentCommitIdx(0)}><Rewind size={20} /></button>
+          <button className="btn-icon active" onClick={() => setIsPlaying(!isPlaying)}>
+            {isPlaying ? <Pause size={20} /> : <Play size={20} />}
           </button>
-          <button className="icon-btn" onClick={() => setCurrentCommitIdx(commits.length - 1)}><FastForward size={20} /></button>
+          <button className="btn-icon" onClick={() => setCurrentCommitIdx(commits.length - 1)}><FastForward size={20} /></button>
         </div>
         <div className="slider-container">
           <input 
