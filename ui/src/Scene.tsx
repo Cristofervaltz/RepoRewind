@@ -83,6 +83,7 @@ export const Scene: React.FC<SceneProps> = ({ data, onNodeClick, onNodeHover }) 
     }
 
     const glow = new THREE.Sprite(material);
+    glow.name = 'glow';
     glow.scale.set(glowSize, glowSize, 1);
     group.add(glow);
 
@@ -101,6 +102,7 @@ export const Scene: React.FC<SceneProps> = ({ data, onNodeClick, onNodeHover }) 
     // Collapsed indicator
     if (isCollapsed) {
       const hint = new SpriteText('▶ collapsed');
+      hint.name = 'hint';
       hint.color = '#ff8855';
       hint.textHeight = 2.5;
       hint.fontFace = 'Inter, system-ui, sans-serif';
@@ -113,6 +115,57 @@ export const Scene: React.FC<SceneProps> = ({ data, onNodeClick, onNodeHover }) 
 
     return group;
   }, []);
+
+  // Sync visual updates without recreating the object to preserve physics state
+  useEffect(() => {
+    if (!data?.nodes) return;
+    
+    data.nodes.forEach((node: any) => {
+      if (node.__threeObj) {
+        const group = node.__threeObj;
+        const glow = group.children.find((c: any) => c.name === 'glow');
+        let hint = group.children.find((c: any) => c.name === 'hint');
+        
+        const isRoot = node.id === 'ROOT';
+        const isDir = node.group === 1;
+        const isCollapsed = node.isCollapsed;
+        
+        let glowSize = 10;
+
+        if (glow) {
+          if (isRoot) {
+            glow.material = sharedMaterials.root;
+            glowSize = 28;
+          } else if (isCollapsed) {
+            glow.material = sharedMaterials.collapsed;
+            glowSize = 20;
+          } else if (isDir) {
+            glow.material = sharedMaterials.folder;
+            glowSize = 18;
+          } else {
+            glow.material = sharedMaterials.file;
+            glowSize = 10;
+          }
+          glow.scale.set(glowSize, glowSize, 1);
+        }
+
+        if (isCollapsed && !hint) {
+          hint = new SpriteText('▶ collapsed');
+          hint.name = 'hint';
+          hint.color = '#ff8855';
+          hint.textHeight = 2.5;
+          hint.fontFace = 'Inter, system-ui, sans-serif';
+          hint.backgroundColor = 'rgba(0,0,0,0.5)';
+          hint.padding = 1;
+          hint.borderRadius = 2;
+          hint.position.set(0, -(glowSize / 2 + 7), 0);
+          group.add(hint);
+        } else if (!isCollapsed && hint) {
+          group.remove(hint);
+        }
+      }
+    });
+  }, [data]);
 
 
 
