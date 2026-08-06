@@ -18,20 +18,33 @@
 
 **RepoRewind** is a next-generation developer tool that transforms dry `git log` histories into breathtaking 3D WebGL visualizations. It instantly spins up a local server and opens a beautiful dark-mode interface where your repository is represented as a living, glowing 3D network graph.
 
-Instead of reading old pull requests, just scrub the timeline and watch your architecture evolve over time. 
-
-What makes it unique? It features a **Local-First AI Storyteller** (powered by WebGPU & WebLLM) that analyzes architectural shifts and tells you the story of *why* the codebase changed during any given era, directly in your browser.
+Instead of reading old pull requests, just scrub the timeline and watch your architecture evolve over time.
 
 ## ✨ Features
 
-- **🚀 Zero-Config Magic**: Run one command in any `.git` repository, and the 3D player opens instantly. No API keys, no databases, no setup.
-- **🕰️ 4D Time Scrubbing**: Drag the timeline slider to literally watch files pop into existence, microservices split, and heavy refactors unfold.
-- **🤖 Local AI Commentary**: Analyzes your git history and provides context-aware summaries using local models in the browser (100% free and private).
-- **💅 Premium Aesthetics**: Built with React and `3d-force-graph`, featuring custom glowing textures, glassmorphism UI, smooth Framer Motion micro-animations, and 3D text labels.
-- **🌳 Interactive 3D Graph**: 
-  - Dynamic folder collapsing/expanding with smooth "branch growing" physics
-  - Distinct visual cues (Golden root, purple folders, cyan files)
-  - Persistent simulation cache for stable and fluid graph evolution over time
+### 🌳 Interactive 3D Architecture Graph
+- **Dynamic Physics Engine**: Watch branches smoothly grow and shrink as you travel through time. 
+- **Folder Collapsing**: Click any purple directory node to neatly collapse it, pulling all child files into a single glowing orange node.
+- **3D Text Labels**: Files and folders clearly display their names floating in 3D space.
+- **Visual Hierarchy**: 
+  - 🟡 **Golden Root**: The core of your repository.
+  - 🟣 **Purple Nodes**: Directories (Click to collapse).
+  - 🟠 **Orange Nodes**: Collapsed directories.
+  - 🔵 **Cyan Nodes**: Source files.
+- **Particle Flows**: Animated directional particles flow through the graph, illustrating dependencies and structure.
+
+### 🕰️ 4D Time Scrubbing
+- Drag the timeline slider to seamlessly travel through the history of your repository.
+- Watch files pop into existence, microservices split, and massive refactors unfold right before your eyes.
+- Our optimized physics cache ensures the layout remains perfectly stable across time jumps—no sudden layout resets!
+
+### 🤖 Local AI Storyteller (WebLLM)
+- Uses WebGPU and local quantization models (like Phi-3 or Llama-3-8B) directly in your browser tab.
+- Generates context-aware narrative summaries of what was happening in the codebase during specific eras.
+- **100% Private**: Your code never leaves your machine.
+
+### 🚀 Zero-Config Magic
+- Run one command in any `.git` repository, and the 3D player opens instantly. No API keys, no databases, no complex setup.
 
 ---
 
@@ -66,16 +79,15 @@ npm run dev analyze .
 
 ---
 
-## 🕹️ Usage (Client Side)
+## 🕹️ Controls
 
 Once the local server starts, RepoRewind automatically opens `http://localhost:3000` in your default browser. 
 
-- **Scroll** to zoom in and out of the 3D code graph.
-- **Drag** to rotate the camera and explore the architecture.
-- **Click on Folders** (purple nodes) to collapse or expand entire directories.
-- **Click on Files** (cyan nodes) to view their contents.
-- **Scrub the Timeline** at the bottom to travel through time and watch the graph evolve dynamically. 
-- Click the **AI Storyteller** button to generate a narrative of the current timeline era.
+- **🖱️ Drag**: Rotate the camera around the 3D graph.
+- **⚙️ Scroll**: Zoom in and out.
+- **👆 Click on Purple Folders**: Expand or collapse the directory.
+- **⏳ Timeline Scrubber**: Travel forward and backward through Git history.
+- **🤖 AI Storyteller**: Click the generate button to read an AI narrative of the current timeline era.
 
 ---
 
@@ -83,8 +95,8 @@ Once the local server starts, RepoRewind automatically opens `http://localhost:3
 
 RepoRewind uses a highly modular setup:
 - **CLI Backend (TypeScript/Node.js)**: Parses `.git` logs recursively, calculates the folder/file trees, and serves a lightweight Express API.
-- **3D Frontend (Vite + React)**: Uses `react-force-graph-3d` for the node visualization and `framer-motion` for sleek UI transitions.
-- **Local AI (WebLLM)**: Downloads and executes small, powerful models (like Phi-3 or Llama-3-8B) using WebGPU directly in the browser tab.
+- **3D Frontend (Vite + React)**: Uses `react-force-graph-3d` and `Three.js` for the node visualization, with custom Canvas texture generation for glowing sprites.
+- **Local AI (WebLLM)**: Downloads and executes small, powerful LLMs using WebGPU directly in the browser tab.
 
 ---
 
