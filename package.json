@@ -1,0 +1,28 @@
+{
+  "name": "reporewind-cli",
+  "version": "1.0.0",
+  "description": "3D Git History Visualizer",
+  "main": "dist/index.js",
+  "bin": {
+    "reporewind": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts"
+  },
+  "dependencies": {
+    "commander": "^12.0.0",
+    "express": "^4.19.0",
+    "cors": "^2.8.5",
+    "@ai-sdk/openai": "^0.0.3",
+    "ai": "^3.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5",
+    "ts-node": "^10.9.2",
+    "@types/node": "^20.12.7",
+    "@types/express": "^4.17.21",
+    "@types/cors": "^2.8.17"
+  }
+}
