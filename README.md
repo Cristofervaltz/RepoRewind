@@ -87,6 +87,7 @@ Once the local server starts, RepoRewind automatically opens `http://localhost:3
 - **⚙️ Scroll**: Zoom in and out.
 - **👆 Click on Purple Folders**: Expand or collapse the directory.
 - **⏳ Timeline Scrubber**: Travel forward and backward through Git history.
+- **⏱️ Time-Travel to this Era**: Physically run `git checkout` to roll back your actual hard drive files to the selected era.
 - **🤖 AI Storyteller**: Click the generate button to read an AI narrative of the current timeline era.
 
 ---

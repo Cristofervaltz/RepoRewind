@@ -71,6 +71,10 @@ const App = () => {
   const graphNodesCache = useRef(new Map<string, any>());
   const graphLinksCache = useRef(new Map<string, any>());
 
+  // UI Modal State
+  const [checkoutConfirm, setCheckoutConfirm] = useState<{hash: string} | null>(null);
+  const [checkoutResult, setCheckoutResult] = useState<string | null>(null);
+
   // Track mouse globally for the tooltip
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -333,16 +337,22 @@ const App = () => {
 
   const handleCheckout = () => {
     if (!currentCommit) return;
-    const confirmCheckout = window.confirm(`Warning: This will physically change your repository files to ${currentCommit.hash}. Continue?`);
-    if (!confirmCheckout) return;
+    setCheckoutConfirm({ hash: currentCommit.hash });
+  };
+
+  const executeCheckout = () => {
+    if (!checkoutConfirm) return;
+    const targetHash = checkoutConfirm.hash;
+    setCheckoutConfirm(null);
     
     fetch('/api/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ hash: currentCommit.hash })
+      body: JSON.stringify({ hash: targetHash })
     })
       .then(res => res.json())
-      .then(data => alert(data.error || data.message));
+      .then(data => setCheckoutResult(data.error || data.message))
+      .catch(err => setCheckoutResult('Network error while checking out.'));
   };
 
   if (!isAnalyzed) {
@@ -437,6 +447,33 @@ const App = () => {
           onNodeClick={handleNodeClick} 
           onNodeHover={setHoverNode}
         />
+        
+        {/* Checkout Modals */}
+        {checkoutConfirm && (
+          <div className="modal-overlay">
+            <div className="modal-content">
+              <h3>⚠️ Time-Travel Warning</h3>
+              <p>This will execute <code>git checkout {checkoutConfirm.hash.substring(0, 7)}</code> on your local machine.</p>
+              <p>All physical files in this repository will be rolled back to this exact moment in history.</p>
+              <div className="modal-actions">
+                <button className="btn" onClick={() => setCheckoutConfirm(null)}>Cancel</button>
+                <button className="btn btn-primary" onClick={executeCheckout}>Proceed</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {checkoutResult && (
+          <div className="modal-overlay">
+            <div className="modal-content">
+              <h3>Git Checkout Result</h3>
+              <p>{checkoutResult}</p>
+              <div className="modal-actions">
+                <button className="btn btn-primary" onClick={() => setCheckoutResult(null)}>Close</button>
+              </div>
+            </div>
+          </div>
+        )}
       </ErrorBoundary>
       
       {/* Dynamic Hover Tooltip */}
@@ -591,6 +628,9 @@ const App = () => {
               <button className="btn btn-primary" onClick={handleCheckout}>
                 ⏱ Time-Travel to this Era
               </button>
+              <div style={{ fontSize: '0.75rem', color: 'var(--color-neutral-100)', marginTop: '4px', textAlign: 'center' }}>
+                Updates your physical files using git checkout
+              </div>
               
               <details>
                 <summary>✨ AI Lore Generator</summary>
