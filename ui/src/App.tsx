@@ -66,6 +66,9 @@ const App = () => {
   const [collapsedDirs, setCollapsedDirs] = useState<Set<string>>(new Set());
   const [hoverNode, setHoverNode] = useState<any>(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  
+  // Search State
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Persistent cache of node and link objects so react-force-graph-3d preserves physics state
   const graphNodesCache = useRef(new Map<string, any>());
@@ -268,6 +271,19 @@ const App = () => {
       return true;
     };
 
+    const isMatched = (nodeId: string, nodeName: string): boolean => {
+      if (!searchQuery) return true;
+      const lowerQuery = searchQuery.toLowerCase();
+      if (nodeName.toLowerCase().includes(lowerQuery)) return true;
+      // Match if any child node matches (for folders)
+      for (const key of allNodesMap.keys()) {
+        if (key.startsWith(nodeId + '/') && key.toLowerCase().includes(lowerQuery)) {
+          return true;
+        }
+      }
+      return false;
+    };
+
     const nodeCache = graphNodesCache.current;
     const linkCache = graphLinksCache.current;
 
@@ -293,6 +309,7 @@ const App = () => {
 
         // Update properties that might have changed
         graphNode.isCollapsed = collapsedDirs.has(id);
+        graphNode.isFaded = !isMatched(id, node.name);
         
         visibleNodes.push(graphNode);
       }
@@ -600,7 +617,27 @@ const App = () => {
           </button>
         </div>
         
-        <div style={{ marginTop: '24px' }}>
+        <div style={{ marginTop: '16px' }}>
+          <input 
+            type="text" 
+            placeholder="Search files or folders..." 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{
+              width: '100%',
+              background: 'rgba(255,255,255,0.05)',
+              border: '1px solid var(--color-glass-border)',
+              padding: '10px 16px',
+              borderRadius: 'var(--radius-md)',
+              color: 'var(--color-neutral-0)',
+              outline: 'none',
+              marginBottom: '16px',
+              boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.5)'
+            }}
+          />
+        </div>
+
+        <div style={{ marginTop: '8px' }}>
           {selectedFile ? (
             <div>
               <div className="flex-between">

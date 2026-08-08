@@ -89,6 +89,7 @@ export const Scene: React.FC<SceneProps> = ({ data, onNodeClick, onNodeHover }) 
 
     // Text label
     const label = new SpriteText(node.name);
+    label.name = 'label';
     label.color = isRoot ? '#ffc832' : isDir ? '#d4a0ff' : '#a0f0e0';
     label.textHeight = isRoot ? 6 : isDir ? 4.5 : 3.5;
     label.fontFace = 'Inter, system-ui, sans-serif';
@@ -129,6 +130,9 @@ export const Scene: React.FC<SceneProps> = ({ data, onNodeClick, onNodeHover }) 
         const isRoot = node.id === 'ROOT';
         const isDir = node.group === 1;
         const isCollapsed = node.isCollapsed;
+        const isFaded = node.isFaded;
+        
+        const currentOpacity = isFaded ? 0.15 : 1.0;
         
         let glowSize = 10;
 
@@ -147,6 +151,16 @@ export const Scene: React.FC<SceneProps> = ({ data, onNodeClick, onNodeHover }) 
             glowSize = 10;
           }
           glow.scale.set(glowSize, glowSize, 1);
+          glow.material.opacity = currentOpacity;
+        }
+
+        const label = group.children.find((c: any) => c.name === 'label');
+        if (label) {
+          label.color = isRoot 
+            ? `rgba(255, 200, 50, ${currentOpacity})` 
+            : isDir 
+              ? `rgba(212, 160, 255, ${currentOpacity})` 
+              : `rgba(160, 240, 224, ${currentOpacity})`;
         }
 
         if (isCollapsed && !hint) {

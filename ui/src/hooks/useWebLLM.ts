@@ -50,7 +50,15 @@ Below is a batch of commits. Summarize this era of development.
 Provide a short, catchy title for this era, and a 2-3 sentence description of the major architectural changes or features added.
 
 Commits:
-${commits.map(c => `- ${c.hash.substring(0, 7)}: ${c.message}`).join('\n')}
+${commits.map(c => {
+  let fileSummary = '';
+  if (c.changes && c.changes.length > 0) {
+    const changesCount = c.changes.length;
+    const sampleFiles = c.changes.slice(0, 10).map((change: any) => change.path).join(', ');
+    fileSummary = ` (Modified ${changesCount} files, incl: ${sampleFiles}${changesCount > 10 ? '...' : ''})`;
+  }
+  return `- ${c.hash.substring(0, 7)}: ${c.message}${fileSummary}`;
+}).join('\n')}
 `;
 
       const chunks = await activeEngine.chat.completions.create({
