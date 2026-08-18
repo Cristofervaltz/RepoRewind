@@ -52,6 +52,7 @@ const App = () => {
   const { progressText, isGenerating, generateStory } = useWebLLM();
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState('');
+  const [isFileDiff, setIsFileDiff] = useState(false); // epta zabyl srazu dobavit
   
   // Landing state
   const [isAnalyzed, setIsAnalyzed] = useState(false);
@@ -369,10 +370,17 @@ const App = () => {
     } else if (node.group === 2) {
       setSelectedFile(node.id);
       setFileContent('Loading...');
-      fetch(`/api/file?hash=${currentCommit.hash}&path=${node.id}`)
+      
+      // esli file menalsya tut - dergaem diff api chtob krasivo pokazat
+      const apiEndpoint = node.status ? `/api/diff?hash=${currentCommit.hash}&path=${node.id}` : `/api/file?hash=${currentCommit.hash}&path=${node.id}`;
+      
+      fetch(apiEndpoint)
         .then(res => res.json())
-        .then(data => setFileContent(data.content || data.error))
-        .catch(() => setFileContent('Failed to load file.'));
+        .then(data => {
+          setFileContent(data.content || data.error);
+          setIsFileDiff(!!data.isDiff);
+        })
+        .catch(() => setFileContent('Failed to load file. chtoto otpalo.'));
     }
   };
 
@@ -673,7 +681,26 @@ const App = () => {
                 </button>
               </div>
               <div className="code-viewer">
-                <pre>{fileContent}</pre>
+                {isFileDiff ? (
+                  <div style={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap', fontSize: '0.85rem' }}>
+                    {fileContent.split('\n').map((line, i) => {
+                      // pacany skazali krasit stroki
+                      let color = 'var(--color-neutral-100)';
+                      let bg = 'transparent';
+                      if (line.startsWith('+') && !line.startsWith('+++')) { color = '#4ade80'; bg = 'rgba(74, 222, 128, 0.1)'; }
+                      else if (line.startsWith('-') && !line.startsWith('---')) { color = '#f87171'; bg = 'rgba(248, 113, 113, 0.1)'; }
+                      else if (line.startsWith('@@')) { color = '#60a5fa'; bg = 'rgba(96, 165, 250, 0.1)'; }
+                      
+                      return (
+                        <div key={i} style={{ color, backgroundColor: bg, padding: '0 4px', minHeight: '1.2em' }}>
+                          {line}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <pre>{fileContent}</pre>
+                )}
               </div>
             </div>
           ) : currentCommit ? (

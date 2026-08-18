@@ -121,10 +121,25 @@ $form.Dispose()`;
       const { hash, path: filePath } = req.query;
       if (!hash || !filePath) return res.status(400).send('Missing hash or path');
       try {
+        // hz pochemu inogda padaet na bolshix failah, mb bufer uvelichit nado
         const content = execSync(`git -C "${currentRepoPath}" show ${hash}:${filePath}`, { maxBuffer: 10 * 1024 * 1024 }).toString();
         res.json({ content });
       } catch (error) {
         res.status(500).json({ error: 'Failed to retrieve file content (might not exist in this commit or is binary).' });
+      }
+    });
+
+    // TODO: dodelat diff dla novih failov, seychas prosto git show delaem. mb slomaetsa esli fail bil pereimenovan lol
+    app.get('/api/diff', (req, res) => {
+      const { hash, path: filePath } = req.query;
+      if (!hash || !filePath) return res.status(400).send('zabil hesh ili put bratan');
+      try {
+        // vrode tak norm pashaet, chtob vzyat imenno patch etogo faila v commite
+        const content = execSync(`git -C "${currentRepoPath}" show ${hash} -- "${filePath}"`, { maxBuffer: 10 * 1024 * 1024 }).toString();
+        res.json({ content, isDiff: true });
+      } catch (error) {
+        // wtf pochemu padaet? mb faila net?
+        res.status(500).json({ error: 'chto-to poszlo ne tak s diffom. mb fail binary?' });
       }
     });
 
