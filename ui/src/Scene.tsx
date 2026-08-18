@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect, MutableRefObject } from 'react';
+import { useRef, useCallback, useEffect } from 'react';
 import ForceGraph3D from 'react-force-graph-3d';
 import * as THREE from 'three';
 import SpriteText from 'three-spritetext';

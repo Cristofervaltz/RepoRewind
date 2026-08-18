@@ -323,6 +323,7 @@ const App = () => {
         }
 
         // Update properties that might have changed
+        graphNode.name = node.name;
         graphNode.isCollapsed = collapsedDirs.has(id);
         graphNode.isFaded = !isMatched(id);
         
@@ -384,7 +385,7 @@ const App = () => {
     })
       .then(res => res.json())
       .then(data => setCheckoutResult(data.error || data.message))
-      .catch(err => setCheckoutResult('Network error while checking out.'));
+      .catch(() => setCheckoutResult('Network error while checking out.'));
   };
 
   if (!isAnalyzed) {
