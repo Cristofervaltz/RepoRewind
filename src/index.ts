@@ -34,8 +34,9 @@ program
     if (!fs.existsSync(uiPath)) {
       console.log('Building UI for the first time... This might take a minute.');
       const uiRoot = path.join(__dirname, isCompiled ? '../ui' : '../ui');
-      execSync('npm.cmd install', { cwd: uiRoot, stdio: 'inherit' });
-      execSync('npm.cmd run build', { cwd: uiRoot, stdio: 'inherit' });
+      const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+      execSync(`${npmCmd} install`, { cwd: uiRoot, stdio: 'inherit' });
+      execSync(`${npmCmd} run build`, { cwd: uiRoot, stdio: 'inherit' });
     }
     app.use(express.static(uiPath));
 
@@ -171,7 +172,13 @@ $form.Dispose()`;
     });
 
     app.listen(options.port, () => {
-      console.log(`RepoRewind visualizer is running on http://localhost:${options.port}`);
+      const url = `http://localhost:${options.port}`;
+      console.log(`RepoRewind visualizer is running on ${url}`);
+      
+      const startCmd = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
+      require('child_process').exec(`${startCmd} ${url}`).on('error', () => {
+         // silently fail if we can't open browser
+      });
     });
   });
 

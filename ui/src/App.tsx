@@ -343,7 +343,7 @@ const App = () => {
     });
 
     return { nodes: visibleNodes, links: visibleLinks };
-  }, [commits, currentCommitIdx, collapsedDirs, repoName]);
+  }, [commits, currentCommitIdx, collapsedDirs, repoName, searchQuery, commitsFileStates]);
 
   const currentCommit = commits[currentCommitIdx];
 
