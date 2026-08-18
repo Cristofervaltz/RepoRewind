@@ -187,26 +187,7 @@ export const Scene: React.FC<SceneProps> = ({ data, onNodeClick, onNodeHover }) 
     <ForceGraph3D
       ref={fgRef}
       graphData={data}
-      nodeLabel={(node: any) => {
-        const statusMap: Record<string, string> = {
-          'A': '<span style="color: #4ade80;">[+] Added</span>',
-          'M': '<span style="color: #fbbf24;">[*] Modified</span>',
-          'D': '<span style="color: #f87171;">[-] Deleted</span>',
-          'R': '<span style="color: #60a5fa;">[→] Renamed</span>',
-        };
-        const statusStr = node.status ? node.status.charAt(0).toUpperCase() : null;
-        const statusHtml = statusStr ? `<div style="margin-top: 6px;">${statusMap[statusStr] || statusStr}</div>` : '';
-        const folderHtml = node.group === 1 ? `<div style="margin-top: 6px; color: #a78bfa;">📁 Folder</div>` : '';
-        
-        return `
-          <div style="background: rgba(10, 10, 15, 0.85); padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); font-family: ui-sans-serif, system-ui, sans-serif; pointer-events: none; backdrop-filter: blur(8px);">
-            <div style="font-weight: 600; color: white; margin-bottom: 4px; font-size: 1rem;">${node.name}</div>
-            <div style="font-size: 0.8rem; color: #9ca3af; word-break: break-all; max-width: 300px;">${node.id}</div>
-            ${statusHtml}
-            ${folderHtml}
-          </div>
-        `;
-      }}
+      nodeLabel=""
       backgroundColor="rgba(0,0,0,0)"
       // Physics: settle quickly but not instantly — allows smooth branch growing
       d3AlphaDecay={0.06}

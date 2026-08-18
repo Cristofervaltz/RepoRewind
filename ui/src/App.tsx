@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, Component, ErrorInfo, ReactNode } from 'react';
+import { useState, useEffect, useMemo, useRef, Component, ErrorInfo, ReactNode, useDeferredValue } from 'react';
 import { Scene } from './Scene';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Play, Pause, FastForward, Rewind, X, Folder, FileCode, FolderOpen, ChevronRight, Github, Info } from 'lucide-react';
@@ -233,11 +233,13 @@ const App = () => {
     return states;
   }, [commits]);
 
+  const deferredCommitIdx = useDeferredValue(currentCommitIdx); // fix lagov polzunka
+
   const graphData = useMemo(() => {
     if (commits.length === 0 || commitsFileStates.length === 0) return { nodes: [], links: [] };
 
     // Get the precomputed state for the current commit in O(1) time
-    const activeFiles = commitsFileStates[currentCommitIdx] || new Set<string>();
+    const activeFiles = commitsFileStates[deferredCommitIdx] || new Set<string>();
     
     const allNodesMap = new Map<string, any>();
     const allLinks: any[] = [];
@@ -301,8 +303,8 @@ const App = () => {
     };
 
     const changeStatusMap = new Map<string, string>();
-    if (commits[currentCommitIdx]) {
-      commits[currentCommitIdx].changes.forEach(c => {
+    if (commits[deferredCommitIdx]) {
+      commits[deferredCommitIdx].changes.forEach(c => {
         changeStatusMap.set(c.path, c.status);
       });
     }
@@ -353,7 +355,7 @@ const App = () => {
     });
 
     return { nodes: visibleNodes, links: visibleLinks };
-  }, [commits, currentCommitIdx, collapsedDirs, repoName, searchQuery, commitsFileStates]);
+  }, [commits, deferredCommitIdx, collapsedDirs, repoName, searchQuery, commitsFileStates]);
 
   const currentCommit = commits[currentCommitIdx];
 
@@ -552,6 +554,24 @@ const App = () => {
             <div className="text-xs" style={{ color: 'var(--color-neutral-300)', fontFamily: 'var(--font-mono)', wordBreak: 'break-all' }}>
               {hoverNode.id === 'ROOT' ? '/' : hoverNode.id}
             </div>
+            
+            {/* status file chtob bylo vidno chto menalos */}
+            {hoverNode.status && (
+              <div style={{
+                marginTop: '4px',
+                padding: '4px 8px',
+                borderRadius: '4px',
+                fontSize: '12px',
+                fontWeight: 600,
+                color: hoverNode.status === 'A' ? '#4ade80' : hoverNode.status === 'D' ? '#f87171' : hoverNode.status === 'M' ? '#fbbf24' : '#60a5fa',
+                backgroundColor: hoverNode.status === 'A' ? 'rgba(74,222,128,0.15)' : hoverNode.status === 'D' ? 'rgba(248,113,113,0.15)' : hoverNode.status === 'M' ? 'rgba(251,191,36,0.15)' : 'rgba(96,165,250,0.15)',
+                display: 'inline-block',
+                alignSelf: 'flex-start'
+              }}>
+                {hoverNode.status === 'A' ? '[+] Added' : hoverNode.status === 'D' ? '[-] Deleted' : hoverNode.status === 'M' ? '[*] Modified' : '[→] Renamed'}
+              </div>
+            )}
+
             <div style={{ marginTop: '4px', padding: '6px 10px', background: 'rgba(255,255,255,0.05)', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span style={{ fontSize: '14px' }}>🖱️</span>
               <span className="text-xs" style={{ color: '#fff', fontWeight: 500 }}>
