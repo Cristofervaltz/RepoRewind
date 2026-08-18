@@ -217,18 +217,27 @@ const App = () => {
     setIsAnalyzing(false);
   };
 
-  const graphData = useMemo(() => {
-    if (commits.length === 0) return { nodes: [], links: [] };
-
-    const activeFiles = new Set<string>();
-    
-    for (let i = 0; i <= currentCommitIdx; i++) {
+  const commitsFileStates = useMemo(() => {
+    if (commits.length === 0) return [];
+    const states: Set<string>[] = [];
+    const active = new Set<string>();
+    for (let i = 0; i < commits.length; i++) {
       for (const change of commits[i].changes) {
-        if (change.status === 'D') activeFiles.delete(change.path);
-        else activeFiles.add(change.path);
+        if (change.status === 'D') active.delete(change.path);
+        else active.add(change.path);
       }
+      // Store a snapshot of the current active files
+      states.push(new Set(active));
     }
+    return states;
+  }, [commits]);
 
+  const graphData = useMemo(() => {
+    if (commits.length === 0 || commitsFileStates.length === 0) return { nodes: [], links: [] };
+
+    // Get the precomputed state for the current commit in O(1) time
+    const activeFiles = commitsFileStates[currentCommitIdx] || new Set<string>();
+    
     const allNodesMap = new Map<string, any>();
     const allLinks: any[] = [];
     const parentMap = new Map<string, string>(); // child id -> parent id
@@ -271,17 +280,23 @@ const App = () => {
       return true;
     };
 
-    const isMatched = (nodeId: string, nodeName: string): boolean => {
-      if (!searchQuery) return true;
+    const matchedPaths = new Set<string>();
+    if (searchQuery) {
       const lowerQuery = searchQuery.toLowerCase();
-      if (nodeName.toLowerCase().includes(lowerQuery)) return true;
-      // Match if any child node matches (for folders)
-      for (const key of allNodesMap.keys()) {
-        if (key.startsWith(nodeId + '/') && key.toLowerCase().includes(lowerQuery)) {
-          return true;
+      allNodesMap.forEach((node, id) => {
+        if (node.name.toLowerCase().includes(lowerQuery)) {
+          let current = id;
+          while (current) {
+            matchedPaths.add(current);
+            current = parentMap.get(current) || '';
+          }
         }
-      }
-      return false;
+      });
+    }
+
+    const isMatched = (nodeId: string): boolean => {
+      if (!searchQuery) return true;
+      return matchedPaths.has(nodeId);
     };
 
     const nodeCache = graphNodesCache.current;
@@ -309,7 +324,7 @@ const App = () => {
 
         // Update properties that might have changed
         graphNode.isCollapsed = collapsedDirs.has(id);
-        graphNode.isFaded = !isMatched(id, node.name);
+        graphNode.isFaded = !isMatched(id);
         
         visibleNodes.push(graphNode);
       }
