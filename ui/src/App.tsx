@@ -299,6 +299,13 @@ const App = () => {
       return matchedPaths.has(nodeId);
     };
 
+    const changeStatusMap = new Map<string, string>();
+    if (commits[currentCommitIdx]) {
+      commits[currentCommitIdx].changes.forEach(c => {
+        changeStatusMap.set(c.path, c.status);
+      });
+    }
+
     const nodeCache = graphNodesCache.current;
     const linkCache = graphLinksCache.current;
 
@@ -326,6 +333,7 @@ const App = () => {
         graphNode.name = node.name;
         graphNode.isCollapsed = collapsedDirs.has(id);
         graphNode.isFaded = !isMatched(id);
+        graphNode.status = changeStatusMap.get(id) || null;
         
         visibleNodes.push(graphNode);
       }
